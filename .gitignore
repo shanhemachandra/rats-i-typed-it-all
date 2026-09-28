@@ -1,0 +1,15 @@
+node_modules/
+src-tauri/target/
+src-tauri/gen/
+dist/
+.DS_Store
+*.log
+
+# Signing material must never be committed. Put these in GitHub Actions
+# secrets instead, under Settings > Secrets and variables > Actions.
+*.p12
+*.pfx
+*.cer
+*.certSigningRequest
+.env
+.env.*

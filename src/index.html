@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shans Typer</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main>
+    <header>
+      <img class="logo" src="logo.png" alt="" width="44" height="44" />
+      <div>
+        <h1>Shans Typer</h1>
+        <p class="sub">Types your text as real keystrokes, where paste cannot reach.</p>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="row between">
+        <label class="section-label" for="text">Text to type</label>
+        <span id="count" class="muted">0 characters</span>
+      </div>
+      <textarea id="text" spellcheck="false"
+                placeholder="Paste or type your text here."></textarea>
+      <div class="row gap">
+        <button id="paste" class="ghost">Paste</button>
+        <button id="clear" class="ghost">Clear</button>
+        <span class="spacer"></span>
+        <span id="eta" class="muted"></span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="row between collapsible" data-target="table-body">
+        <label class="section-label">Table mode</label>
+        <label class="switch">
+          <input type="checkbox" id="tableMode" />
+          <span>Treat input as a table</span>
+        </label>
+      </div>
+      <div id="table-body" class="body hidden">
+        <p class="hint">
+          Structure comes from the target app. Cells are separated with Tab,
+          which moves to the next cell in spreadsheets and in existing
+          Word or Docs tables.
+        </p>
+        <label class="field">
+          <span>Target</span>
+          <select id="tableTarget">
+            <option value="spreadsheet">Spreadsheet (Excel, Sheets): Tab across, Enter per row</option>
+            <option value="documentTable">Existing table in Word or Docs: Tab through every cell</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Input format</span>
+          <select id="tableFormat">
+            <option value="auto">Detect automatically</option>
+            <option value="tsv">Tab separated</option>
+            <option value="csv">Comma separated</option>
+          </select>
+        </label>
+        <p id="tableSummary" class="hint mono"></p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="row between collapsible" data-target="clean-body">
+        <label class="section-label">Text cleanup</label>
+        <span class="muted small">Click to expand</span>
+      </div>
+      <div id="clean-body" class="body">
+        <label class="check">
+          <input type="checkbox" id="cleanDashes" checked />
+          <span>Replace em dashes and en dashes with a plain hyphen</span>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="cleanQuotes" />
+          <span>Replace curly quotes with straight quotes</span>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="cleanEllipsis" />
+          <span>Replace the ellipsis character with three dots</span>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="cleanSpaces" />
+          <span>Replace non breaking spaces with normal spaces</span>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="stripIndent" />
+          <span>Strip leading spaces on each line (for editors that auto indent)</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="row between collapsible" data-target="set-body">
+        <label class="section-label">Typing settings</label>
+        <span class="muted small">Click to expand</span>
+      </div>
+      <div id="set-body" class="body">
+        <label class="field">
+          <span>Speed</span>
+          <input type="range" id="cps" min="2" max="200" value="25" />
+          <output id="cpsOut" class="mono"></output>
+        </label>
+
+        <label class="check">
+          <input type="checkbox" id="burst" />
+          <span>Fast burst mode (send text in blocks, far quicker for long text)</span>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="human" checked />
+          <span>Human rhythm (vary timing, pause at punctuation)</span>
+        </label>
+
+        <label class="field">
+          <span>Enter key</span>
+          <select id="newlineMode">
+            <option value="enter">Send Enter (documents, spreadsheets)</option>
+            <option value="shiftEnter">Send Shift and Enter (chat apps: avoids sending the message)</option>
+            <option value="space">Replace line breaks with a space</option>
+            <option value="skip">Ignore line breaks</option>
+          </select>
+        </label>
+        <p id="enterWarn" class="warn hidden">
+          In Slack, Teams and terminals, Enter sends or runs. Use Shift and
+          Enter there, or your text will fire as many separate messages.
+        </p>
+
+        <label class="field">
+          <span>Tab key</span>
+          <select id="tabMode">
+            <option value="tab">Send a real Tab (moves between cells and fields)</option>
+            <option value="spaces">Send spaces instead</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Countdown</span>
+          <input type="number" id="countdown" min="1" max="60" value="5" />
+          <span class="muted">seconds to click into your target</span>
+        </label>
+
+        <label class="check">
+          <input type="checkbox" id="focusGuard" checked />
+          <span>Stop automatically if focus leaves the target window (Windows)</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="panel status-panel">
+      <div id="status" class="status">Ready.</div>
+      <div class="progress-wrap hidden" id="progressWrap">
+        <div class="progress"><div id="bar"></div></div>
+        <div class="row between mono small">
+          <span id="progressText">0 / 0</span>
+          <span id="timer">0.0s</span>
+        </div>
+      </div>
+      <div class="row gap">
+        <button id="start" class="primary">Start</button>
+        <button id="pause" class="ghost hidden">Pause</button>
+        <button id="cancel" class="danger hidden">Cancel</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="textpipe.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+name: Release
+
+# Push a tag such as v0.1.0 to build both installers, or run manually
+# from the Actions tab. Publishes a GitHub release containing:
+#   Windows  .exe  (NSIS installer)
+#   macOS    .dmg  (universal, Apple Silicon plus Intel)
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: "--target universal-apple-darwin"
+          - platform: windows-latest
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Cache cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # ---- Code signing, add once certificates are purchased.
+          # Do NOT reference secrets that do not exist yet: a missing secret
+          # expands to an empty string, not an unset variable, and Tauri then
+          # tries to import an empty certificate and fails the build.
+          #
+          # macOS, from an Apple Developer ID ($99/yr):
+          #   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD,
+          #   APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Shans Typer v__VERSION__"
+          releaseBody: |
+            **Windows:** download the `.exe` installer.
+            **macOS:** download the `.dmg`.
+
+            These builds are not yet code signed. On Windows, click
+            "More info" then "Run anyway". On macOS, right-click the app
+            and choose Open the first time.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
