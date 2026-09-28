@@ -1,4 +1,4 @@
-//! Shans Typer: sends text as real keystrokes to whatever has focus.
+//! Rats, I Typed It All: sends text as real keystrokes to whatever has focus.
 //!
 //! Windows is the primary target. Keystrokes go out through `enigo`, which
 //! uses `SendInput` with `KEYEVENTF_UNICODE` on Windows and `CGEvent` on
@@ -70,8 +70,6 @@ struct Finished {
 
 #[derive(Default)]
 pub struct Control {
-    cancel: AtomicBool,
-    paused: AtomicBool,
     running: AtomicBool,
 }
 
@@ -166,21 +164,6 @@ fn run_typing(app: AppHandle, cfg: TypeConfig, control: Arc<Control>) {
     // ---- countdown, giving the user time to click into the target
     let mut remaining = cfg.countdown_secs.max(0.0);
     while remaining > 0.0 {
-        if control.cancel.load(Ordering::Relaxed) {
-            let _ = app.emit(
-                "finished",
-                Finished {
-                    typed: 0,
-                    total: 0,
-                    elapsed_ms: 0,
-                    stopped: true,
-                    reason: Some("Cancelled before typing started.".into()),
-                    error: None,
-                },
-            );
-            control.running.store(false, Ordering::Relaxed);
-            return;
-        }
         let _ = app.emit("countdown", Tick { remaining });
         thread::sleep(Duration::from_millis(100));
         remaining -= 0.1;
@@ -215,30 +198,12 @@ fn run_typing(app: AppHandle, cfg: TypeConfig, control: Arc<Control>) {
     let target_window = foreground_window();
 
     let started = Instant::now();
-    let mut paused_total = Duration::ZERO;
     let mut typed = 0usize;
     let mut stop_reason: Option<String> = None;
     let mut error: Option<String> = None;
 
     let mut i = 0usize;
     while i < total {
-        if control.cancel.load(Ordering::Relaxed) {
-            stop_reason = Some("Stopped.".into());
-            break;
-        }
-
-        // ---- pause handling; paused time is excluded from the timer
-        if control.paused.load(Ordering::Relaxed) {
-            let pause_started = Instant::now();
-            while control.paused.load(Ordering::Relaxed)
-                && !control.cancel.load(Ordering::Relaxed)
-            {
-                thread::sleep(Duration::from_millis(60));
-            }
-            paused_total += pause_started.elapsed();
-            continue;
-        }
-
         // ---- safety guard: did they switch away from the target window?
         if cfg.stop_on_focus_change && target_window != 0 {
             let now = foreground_window();
@@ -279,7 +244,7 @@ fn run_typing(app: AppHandle, cfg: TypeConfig, control: Arc<Control>) {
         }
 
         typed = i;
-        let elapsed = started.elapsed().saturating_sub(paused_total);
+        let elapsed = started.elapsed();
         // Report often enough to feel live without flooding the UI.
         if typed % 8 == 0 || typed == total {
             let _ = app.emit(
@@ -303,7 +268,7 @@ fn run_typing(app: AppHandle, cfg: TypeConfig, control: Arc<Control>) {
         }
     }
 
-    let elapsed = started.elapsed().saturating_sub(paused_total);
+    let elapsed = started.elapsed();
     let _ = app.emit(
         "finished",
         Finished {
@@ -333,8 +298,6 @@ fn start_typing(
         return Err("Nothing to type.".into());
     }
 
-    state.control.cancel.store(false, Ordering::Relaxed);
-    state.control.paused.store(false, Ordering::Relaxed);
     state.control.running.store(true, Ordering::Relaxed);
 
     let control = state.control.clone();
@@ -342,20 +305,24 @@ fn start_typing(
     Ok(())
 }
 
+/// macOS only delivers synthetic keystrokes from apps granted Accessibility
+/// in System Settings, and it drops them silently otherwise: the run looks
+/// normal but nothing arrives. The UI asks this up front so it can say so.
+/// Sync commands run on the main thread, which is where this belongs.
 #[tauri::command]
-fn pause_typing(state: tauri::State<'_, AppState>) {
-    state.control.paused.store(true, Ordering::Relaxed);
-}
-
-#[tauri::command]
-fn resume_typing(state: tauri::State<'_, AppState>) {
-    state.control.paused.store(false, Ordering::Relaxed);
-}
-
-#[tauri::command]
-fn cancel_typing(state: tauri::State<'_, AppState>) {
-    state.control.cancel.store(true, Ordering::Relaxed);
-    state.control.paused.store(false, Ordering::Relaxed);
+fn accessibility_ok() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        #[link(name = "ApplicationServices", kind = "framework")]
+        extern "C" {
+            fn AXIsProcessTrusted() -> bool;
+        }
+        unsafe { AXIsProcessTrusted() }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
 }
 
 #[tauri::command]
@@ -368,17 +335,14 @@ fn is_running(state: tauri::State<'_, AppState>) -> bool {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(AppState {
             control: Arc::new(Control::default()),
         })
         .invoke_handler(tauri::generate_handler![
             start_typing,
-            pause_typing,
-            resume_typing,
-            cancel_typing,
+            accessibility_ok,
             is_running
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Shans Typer");
+        .expect("error while running Rats, I Typed It All");
 }

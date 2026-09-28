@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Lets the main window call the typing commands and listen for the countdown, progress and finished events. Without this file Tauri grants the page nothing, and the UI never hears back from the typing thread.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

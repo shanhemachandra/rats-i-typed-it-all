@@ -1,4 +1,4 @@
-# Shans Typer
+# Rats, I Typed It All
 
 Sends your text to any application as real keystrokes, so it arrives in
 places a clipboard paste cannot reach: remote desktop sessions with the

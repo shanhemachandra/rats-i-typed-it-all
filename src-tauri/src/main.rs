@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    shans_typer_lib::run()
+    rats_i_typed_it_all_lib::run()
 }

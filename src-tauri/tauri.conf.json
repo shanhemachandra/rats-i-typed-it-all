@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Shans Typer",
-  "version": "0.1.0",
-  "identifier": "com.shanstyper.app",
+  "productName": "Rats, I Typed It All",
+  "version": "0.1.1",
+  "identifier": "com.ratsityped.app",
   "build": {
     "frontendDist": "../src"
   },
@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Shans Typer",
+        "title": "Rats, I Typed It All",
         "width": 640,
         "height": 820,
         "minWidth": 520,
@@ -36,7 +36,7 @@
     "copyright": "Copyright (c) 2026",
     "category": "Productivity",
     "shortDescription": "Type text where paste does not reach.",
-    "longDescription": "Shans Typer sends your text as real keystrokes to any application, including remote desktop sessions and fields that block pasting.",
+    "longDescription": "Rats, I Typed It All sends your text as real keystrokes to any application, including remote desktop sessions and fields that block pasting.",
     "windows": {
       "nsis": {
         "installMode": "currentUser"

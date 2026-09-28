@@ -1,7 +1,7 @@
 name: Release
 
 # Push a tag such as v0.1.0 to build both installers, or run manually
-# from the Actions tab. Publishes a GitHub release containing:
+# from the Actions tab. Creates a DRAFT GitHub release containing:
 #   Windows  .exe  (NSIS installer)
 #   macOS    .dmg  (universal, Apple Silicon plus Intel)
 on:
@@ -56,7 +56,7 @@ jobs:
           #   APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: "Shans Typer v__VERSION__"
+          releaseName: "Rats, I Typed It All v__VERSION__"
           releaseBody: |
             **Windows:** download the `.exe` installer.
             **macOS:** download the `.dmg`.
@@ -64,6 +64,9 @@ jobs:
             These builds are not yet code signed. On Windows, click
             "More info" then "Run anyway". On macOS, right-click the app
             and choose Open the first time.
-          releaseDraft: false
+          # Draft, so the installers are never publicly downloadable from
+          # GitHub. They are sold through desertgateholdings.com instead,
+          # which serves them from private storage after payment.
+          releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

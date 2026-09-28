@@ -1,6 +1,6 @@
 "use strict";
 
-/* Shans Typer front end.
+/* Rats, I Typed It All front end.
  *
  * The text pipeline lives here: cleanup, table conversion and indent
  * stripping all happen before anything is handed to Rust, so the backend
@@ -26,11 +26,10 @@ const el = {
   tabMode: $("tabMode"), countdown: $("countdown"), focusGuard: $("focusGuard"),
   status: $("status"), progressWrap: $("progressWrap"), bar: $("bar"),
   progressText: $("progressText"), timer: $("timer"),
-  start: $("start"), pause: $("pause"), cancel: $("cancel"),
+  start: $("start"), a11yBanner: $("a11yBanner"),
 };
 
 let running = false;
-let paused = false;
 let tickHandle = null;
 let lastElapsedMs = 0;
 
@@ -86,14 +85,8 @@ function setStatus(msg, kind) {
 function showRunning(on) {
   running = on;
   el.start.classList.toggle("hidden", on);
-  el.pause.classList.toggle("hidden", !on);
-  el.cancel.classList.toggle("hidden", !on);
   el.progressWrap.classList.toggle("hidden", !on);
-  if (!on) {
-    paused = false;
-    el.pause.textContent = "Pause";
-    if (tickHandle) { clearInterval(tickHandle); tickHandle = null; }
-  }
+  if (!on && tickHandle) { clearInterval(tickHandle); tickHandle = null; }
 }
 
 function setProgress(typed, total, elapsedMs) {
@@ -103,10 +96,23 @@ function setProgress(typed, total, elapsedMs) {
   el.timer.textContent = formatDuration(elapsedMs);
 }
 
+/** Show or hide the macOS Accessibility banner; returns true when granted. */
+async function checkAccessibility() {
+  if (!invoke) return true;
+  let ok = true;
+  try { ok = await invoke("accessibility_ok"); } catch { ok = true; }
+  el.a11yBanner.classList.toggle("hidden", ok);
+  return ok;
+}
+
 async function start() {
   const text = processText();
   if (!text) { setStatus("Nothing to type. Add some text first.", "err"); return; }
   if (!invoke) { setStatus("Typing is only available in the desktop app.", "err"); return; }
+  if (!(await checkAccessibility())) {
+    setStatus("Turn on Accessibility for this app first (see the note at the top).", "err");
+    return;
+  }
 
   const config = {
     text,
@@ -124,31 +130,12 @@ async function start() {
     await invoke("start_typing", { config });
     showRunning(true);
     setProgress(0, text.length, 0);
-    // Keep the clock moving between progress events.
-    tickHandle = setInterval(() => {
-      if (!paused) {
-        lastElapsedMs += 100;
-        el.timer.textContent = formatDuration(lastElapsedMs);
-      }
-    }, 100);
   } catch (e) {
     setStatus(String(e), "err");
   }
 }
 
 el.start.addEventListener("click", start);
-
-el.pause.addEventListener("click", async () => {
-  if (!invoke) return;
-  paused = !paused;
-  await invoke(paused ? "pause_typing" : "resume_typing");
-  el.pause.textContent = paused ? "Resume" : "Pause";
-  setStatus(paused ? "Paused." : "Typing.");
-});
-
-el.cancel.addEventListener("click", async () => {
-  if (invoke) await invoke("cancel_typing");
-});
 
 // ------------------------------------------------------------ backend events
 
@@ -160,8 +147,14 @@ if (listen) {
 
   listen("progress", (e) => {
     const p = e.payload;
-    if (!paused) setStatus("Typing. Press Escape or Cancel to stop.");
+    setStatus("Typing.");
     setProgress(p.typed, p.total, p.elapsedMs);
+    if (!tickHandle) {
+      tickHandle = setInterval(() => {
+        lastElapsedMs += 100;
+        el.timer.textContent = formatDuration(lastElapsedMs);
+      }, 100);
+    }
   });
 
   listen("finished", (e) => {
@@ -231,6 +224,20 @@ el.cps.addEventListener("input", () => {
     n.addEventListener(evt, updateCount));
 });
 
+// WebKit can restore form controls from a previous launch. That once left
+// table mode silently ticked, which turns every comma in ordinary prose
+// into a Tab. Always start from the defaults written in the HTML.
+document.querySelectorAll("input, select, textarea").forEach((n) => {
+  if (n.type === "checkbox") n.checked = n.defaultChecked;
+  else if (n.tagName === "SELECT") {
+    const i = [...n.options].findIndex((o) => o.defaultSelected);
+    n.selectedIndex = i < 0 ? 0 : i;
+  } else n.value = n.defaultValue;
+});
+$("table-body").classList.toggle("hidden", !el.tableMode.checked);
+el.human.disabled = el.burst.checked;
+
 el.cpsOut.textContent = `${el.cps.value} chars/sec`;
 el.enterWarn.classList.remove("hidden");
 updateCount();
+checkAccessibility();

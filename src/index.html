@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Shans Typer</title>
+  <title>Rats, I Typed It All</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -11,10 +11,16 @@
     <header>
       <img class="logo" src="logo.png" alt="" width="44" height="44" />
       <div>
-        <h1>Shans Typer</h1>
+        <h1>Rats, I Typed It All</h1>
         <p class="sub">Types your text as real keystrokes, where paste cannot reach.</p>
       </div>
     </header>
+
+    <div id="a11yBanner" class="warn hidden">
+      <b>One-time setup on Mac:</b> open System Settings, then Privacy &amp; Security,
+      then Accessibility, and switch on <b>Rats, I Typed It All</b>. Then quit and
+      reopen this app. Until you do, macOS silently blocks the typing.
+    </div>
 
     <section class="panel">
       <div class="row between">
@@ -160,8 +166,6 @@
       </div>
       <div class="row gap">
         <button id="start" class="primary">Start</button>
-        <button id="pause" class="ghost hidden">Pause</button>
-        <button id="cancel" class="danger hidden">Cancel</button>
       </div>
     </section>
   </main>
