@@ -105,7 +105,15 @@ button.primary {
   font-weight: 600;
   padding: 12px;
 }
-button.danger { color: var(--danger); }
+button.danger {
+  flex: 1;
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+  font-weight: 600;
+  padding: 12px;
+}
+button.danger:hover { border-color: var(--danger); filter: brightness(0.95); }
 button.ghost { background: transparent; }
 
 .field { display: flex; align-items: center; gap: 8px; font-size: 13px; }

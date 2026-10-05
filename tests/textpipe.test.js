@@ -30,6 +30,30 @@ eq(TP.applyCleanup("it’s", { cleanQuotes: true }), "it's", "curly apostrophe")
 eq(TP.applyCleanup("a…b", { cleanEllipsis: true }), "a...b", "ellipsis");
 eq(TP.applyCleanup("a b", { cleanSpaces: true }), "a b", "non breaking space");
 
+console.log("markdown stripping");
+const md = (s) => TP.applyCleanup(s, { cleanMarkdown: true });
+eq(md("a **bold** word"), "a bold word", "double-star bold");
+eq(md("a __bold__ word"), "a bold word", "double-underscore bold");
+eq(md("an *italic* word"), "an italic word", "single-star italic");
+eq(md("an _italic_ word"), "an italic word", "underscore italic");
+eq(md("***both***"), "both", "bold italic");
+eq(md("~~gone~~ here"), "gone here", "strikethrough");
+eq(md("run `npm test` now"), "run npm test now", "inline code");
+eq(md("## Heading\ntext"), "Heading\ntext", "heading hashes");
+eq(md("* one\n* two"), "- one\n- two", "star bullets become hyphens");
+eq(md("**Key point:** keep it"), "Key point: keep it", "bold label with colon");
+eq(md("2 * 3 * 4"), "2 * 3 * 4", "spaced arithmetic untouched");
+eq(md("my_var_name"), "my_var_name", "snake_case untouched");
+eq(md("stray **bold with no end"), "stray bold with no end", "unpaired double star removed");
+eq(md("a ``` b ` c"), "a  b  c", "every backtick removed");
+eq(md("```js\nlet x = 1;\n```\ndone"), "let x = 1;\ndone", "code fence lines removed");
+eq(md("> quoted\n>> nested"), "quoted\nnested", "quote markers");
+eq(md("above\n---\nbelow"), "above\n\nbelow", "divider line removed");
+eq(md("see [the docs](https://x.y) now"), "see the docs now", "link keeps its text");
+eq(md("![a cat](cat.png)"), "a cat", "image keeps its alt text");
+eq(md("- item one"), "- item one", "hyphen bullets untouched");
+eq(TP.applyCleanup("a **b**", {}), "a **b**", "markdown kept when option off");
+
 console.log("csv parsing");
 eq(TP.parseCSV("a,b\nc,d"), [["a", "b"], ["c", "d"]], "simple csv");
 eq(TP.parseCSV('a,"b,c"\nd,e'), [["a", "b,c"], ["d", "e"]], "quoted comma");

@@ -5,8 +5,32 @@
  * only ever sees the finished character sequence. */
 
 (function (root) {
+  /**
+   * Reduce text copied from a chat window to clean text: drop code fences,
+   * every backtick, heading hashes, quote markers, divider lines, link
+   * syntax, and all bold/italic/strike markers, paired or stray. Single *
+   * and _ go only when they wrap words, so "2 * 3" and snake_case survive.
+   * "* item" bullets become "- item".
+   */
+  function stripMarkdown(s) {
+    return s
+      .replace(/^[ \t]*(```|~~~).*$\n?/gm, "")
+      .replace(/^[ \t]*([-*_])([ \t]*\1){2,}[ \t]*$/gm, "")
+      .replace(/^[ \t]{0,3}#{1,6}[ \t]+/gm, "")
+      .replace(/^([ \t]*>[ \t]?)+/gm, "")
+      .replace(/^([ \t]*)[*+][ \t]+/gm, "$1- ")
+      .replace(/!?\[([^\]\n]*)\]\([^)\n]*\)/g, "$1")
+      .replace(/\*\*(?=\S)([\s\S]*?\S)\*\*/g, "$1")
+      .replace(/(^|[^\w])__(?=\S)([\s\S]*?\S)__(?!\w)/g, "$1$2")
+      .replace(/~~(?=\S)([\s\S]*?\S)~~/g, "$1")
+      .replace(/(^|[^\w*])\*(?=[^\s*])([^*\n]*?[^\s*])\*(?![\w*])/g, "$1$2")
+      .replace(/(^|[^\w])_(?=[^\s_])([^_\n]*?[^\s_])_(?!\w)/g, "$1$2")
+      .replace(/\*\*|~~|`/g, "");
+  }
+
   function applyCleanup(s, o) {
     o = o || {};
+    if (o.cleanMarkdown) s = stripMarkdown(s);
     if (o.cleanDashes) s = s.replace(/[—–‒−]/g, "-");
     if (o.cleanQuotes) {
       s = s.replace(/[‘’‚‛]/g, "'")
@@ -99,6 +123,6 @@
   }
 
   root.TextPipe = {
-    applyCleanup, parseCSV, parseTSV, buildTable, processText, formatDuration,
+    applyCleanup, stripMarkdown, parseCSV, parseTSV, buildTable, processText, formatDuration,
   };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -18,6 +18,7 @@ const el = {
   paste: $("paste"), clear: $("clear"),
   tableMode: $("tableMode"), tableTarget: $("tableTarget"),
   tableFormat: $("tableFormat"), tableSummary: $("tableSummary"),
+  cleanMarkdown: $("cleanMarkdown"),
   cleanDashes: $("cleanDashes"), cleanQuotes: $("cleanQuotes"),
   cleanEllipsis: $("cleanEllipsis"), cleanSpaces: $("cleanSpaces"),
   stripIndent: $("stripIndent"),
@@ -26,7 +27,8 @@ const el = {
   tabMode: $("tabMode"), countdown: $("countdown"), focusGuard: $("focusGuard"),
   status: $("status"), progressWrap: $("progressWrap"), bar: $("bar"),
   progressText: $("progressText"), timer: $("timer"),
-  start: $("start"), a11yBanner: $("a11yBanner"),
+  start: $("start"), stop: $("stop"), a11yBanner: $("a11yBanner"),
+  openA11y: $("openA11y"), recheckA11y: $("recheckA11y"), onTop: $("onTop"),
 };
 
 let running = false;
@@ -40,6 +42,7 @@ const { processText: pipe, formatDuration } = window.TextPipe;
 /** Gather current option state for the pure pipeline in textpipe.js. */
 function options() {
   return {
+    cleanMarkdown: el.cleanMarkdown.checked,
     cleanDashes: el.cleanDashes.checked,
     cleanQuotes: el.cleanQuotes.checked,
     cleanEllipsis: el.cleanEllipsis.checked,
@@ -85,6 +88,7 @@ function setStatus(msg, kind) {
 function showRunning(on) {
   running = on;
   el.start.classList.toggle("hidden", on);
+  el.stop.classList.toggle("hidden", !on);
   el.progressWrap.classList.toggle("hidden", !on);
   if (!on && tickHandle) { clearInterval(tickHandle); tickHandle = null; }
 }
@@ -137,6 +141,40 @@ async function start() {
 
 el.start.addEventListener("click", start);
 
+el.stop.addEventListener("click", async () => {
+  if (!invoke) return;
+  setStatus("Stopping.", "err");
+  try { await invoke("stop_typing"); } catch { /* nothing running */ }
+});
+
+// Float above other windows, or get out of the way, on demand.
+el.onTop.addEventListener("change", async () => {
+  if (!invoke) return;
+  try { await invoke("set_on_top", { on: el.onTop.checked }); } catch { /* no-op */ }
+});
+
+// Take the user straight to the macOS Accessibility list (and pop the native
+// system prompt, which also registers this app there).
+if (el.openA11y) {
+  el.openA11y.addEventListener("click", async () => {
+    if (!invoke) return;
+    try {
+      const ok = await invoke("open_accessibility");
+      el.a11yBanner.classList.toggle("hidden", ok);
+      if (!ok) {
+        setStatus("Turn on this app in the list that opened, then click “recheck”.", "ok");
+      }
+    } catch { /* opening settings is best effort */ }
+  });
+}
+
+if (el.recheckA11y) {
+  el.recheckA11y.addEventListener("click", async () => {
+    const ok = await checkAccessibility();
+    setStatus(ok ? "Accessibility is on. You’re ready." : "Still off. Quit and reopen the app after switching it on.", ok ? "ok" : "err");
+  });
+}
+
 // ------------------------------------------------------------ backend events
 
 if (listen) {
@@ -147,7 +185,7 @@ if (listen) {
 
   listen("progress", (e) => {
     const p = e.payload;
-    setStatus("Typing.");
+    setStatus("Typing. Press Esc to stop.");
     setProgress(p.typed, p.total, p.elapsedMs);
     if (!tickHandle) {
       tickHandle = setInterval(() => {
@@ -219,7 +257,7 @@ el.cps.addEventListener("input", () => {
 
 ["input", "change"].forEach((evt) => {
   el.text.addEventListener(evt, updateCount);
-  [el.cleanDashes, el.cleanQuotes, el.cleanEllipsis, el.cleanSpaces,
+  [el.cleanMarkdown, el.cleanDashes, el.cleanQuotes, el.cleanEllipsis, el.cleanSpaces,
    el.stripIndent, el.tableTarget, el.tableFormat].forEach((n) =>
     n.addEventListener(evt, updateCount));
 });
@@ -241,3 +279,5 @@ el.cpsOut.textContent = `${el.cps.value} chars/sec`;
 el.enterWarn.classList.remove("hidden");
 updateCount();
 checkAccessibility();
+// Match the window's float state to the checkbox default on launch.
+if (invoke) { invoke("set_on_top", { on: el.onTop.checked }).catch(() => {}); }

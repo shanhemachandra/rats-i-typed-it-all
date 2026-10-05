@@ -17,9 +17,13 @@
     </header>
 
     <div id="a11yBanner" class="warn hidden">
-      <b>One-time setup on Mac:</b> open System Settings, then Privacy &amp; Security,
-      then Accessibility, and switch on <b>Rats, I Typed It All</b>. Then quit and
-      reopen this app. Until you do, macOS silently blocks the typing.
+      <b>One-time setup on Mac:</b> macOS needs you to switch on Accessibility for
+      this app, or it silently blocks the typing. Click the button, turn on
+      <b>Rats, I Typed It All</b> in the list that opens, then quit and reopen.
+      <div class="row gap" style="margin-top:10px">
+        <button id="openA11y" class="primary small">Open Accessibility settings</button>
+        <button id="recheckA11y" class="ghost small">I&rsquo;ve done it &ndash; recheck</button>
+      </div>
     </div>
 
     <section class="panel">
@@ -76,6 +80,10 @@
         <span class="muted small">Click to expand</span>
       </div>
       <div id="clean-body" class="body">
+        <label class="check">
+          <input type="checkbox" id="cleanMarkdown" checked />
+          <span>Clean text only: remove backticks, **bold**, *italic*, # headings, links and other formatting symbols (from chat apps)</span>
+        </label>
         <label class="check">
           <input type="checkbox" id="cleanDashes" checked />
           <span>Replace em dashes and en dashes with a plain hyphen</span>
@@ -152,6 +160,10 @@
           <input type="checkbox" id="focusGuard" checked />
           <span>Stop automatically if focus leaves the target window (Windows)</span>
         </label>
+        <label class="check">
+          <input type="checkbox" id="onTop" checked />
+          <span>Keep this window on top of other apps</span>
+        </label>
       </div>
     </section>
 
@@ -166,7 +178,9 @@
       </div>
       <div class="row gap">
         <button id="start" class="primary">Start</button>
+        <button id="stop" class="danger hidden">Stop (Esc)</button>
       </div>
+      <p class="hint" id="stopHint">Tip: press <b>Esc</b> at any time to stop, even while another app is in front.</p>
     </section>
   </main>
 

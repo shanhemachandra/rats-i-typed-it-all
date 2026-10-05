@@ -71,6 +71,57 @@ struct Finished {
 #[derive(Default)]
 pub struct Control {
     running: AtomicBool,
+    /// Set from the Stop button to abort a run.
+    cancel: AtomicBool,
+}
+
+/// Is the physical Esc key held down right now?
+///
+/// The run polls this rather than registering a global hotkey: a hotkey can
+/// fail to register (and did, silently), while asking the keyboard for its
+/// current state always works, from any thread, whichever app is in front.
+/// macOS reads the hardware state, so our own injected keystrokes never
+/// count as a press.
+#[cfg(target_os = "macos")]
+fn esc_down() -> bool {
+    #[link(name = "ApplicationServices", kind = "framework")]
+    extern "C" {
+        fn CGEventSourceKeyState(state_id: i32, key: u16) -> bool;
+    }
+    const HID_SYSTEM_STATE: i32 = 1;
+    const KVK_ESCAPE: u16 = 0x35;
+    unsafe { CGEventSourceKeyState(HID_SYSTEM_STATE, KVK_ESCAPE) }
+}
+
+#[cfg(windows)]
+fn esc_down() -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_ESCAPE};
+    unsafe { (GetAsyncKeyState(VK_ESCAPE.0 as i32) as u16) & 0x8000 != 0 }
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
+fn esc_down() -> bool {
+    false
+}
+
+fn stop_requested(control: &Control) -> bool {
+    control.cancel.load(Ordering::Relaxed) || esc_down()
+}
+
+/// Sleep for `secs`, checking for a stop every 10ms so a quick tap of Esc
+/// is caught even in a long pause. Returns true if a stop was requested.
+fn nap(secs: f64, control: &Control) -> bool {
+    let end = Instant::now() + Duration::from_secs_f64(secs.max(0.0));
+    loop {
+        if stop_requested(control) {
+            return true;
+        }
+        let now = Instant::now();
+        if now >= end {
+            return false;
+        }
+        thread::sleep((end - now).min(Duration::from_millis(10)));
+    }
 }
 
 pub struct AppState {
@@ -159,31 +210,57 @@ fn send_tab(enigo: &mut Enigo, mode: &str, spaces: usize) -> Result<(), String> 
     }
 }
 
+/// Single exit point for a run: tells the UI and clears the run flags. Every
+/// way a run can end goes through here.
+fn finish_run(
+    app: &AppHandle,
+    control: &Arc<Control>,
+    typed: usize,
+    total: usize,
+    elapsed_ms: u128,
+    reason: Option<String>,
+    error: Option<String>,
+) {
+    let _ = app.emit(
+        "finished",
+        Finished {
+            typed,
+            total,
+            elapsed_ms,
+            stopped: reason.is_some(),
+            reason,
+            error,
+        },
+    );
+    control.cancel.store(false, Ordering::Relaxed);
+    control.running.store(false, Ordering::Relaxed);
+}
+
 /// The typing run. Executes on its own thread and reports through events.
 fn run_typing(app: AppHandle, cfg: TypeConfig, control: Arc<Control>) {
     // ---- countdown, giving the user time to click into the target
     let mut remaining = cfg.countdown_secs.max(0.0);
     while remaining > 0.0 {
         let _ = app.emit("countdown", Tick { remaining });
-        thread::sleep(Duration::from_millis(100));
+        if nap(0.1, &control) {
+            finish_run(&app, &control, 0, 0, 0, Some("Stopped.".into()), None);
+            return;
+        }
         remaining -= 0.1;
     }
 
     let mut enigo = match Enigo::new(&Settings::default()) {
         Ok(e) => e,
         Err(e) => {
-            let _ = app.emit(
-                "finished",
-                Finished {
-                    typed: 0,
-                    total: 0,
-                    elapsed_ms: 0,
-                    stopped: false,
-                    reason: None,
-                    error: Some(format!("Could not access the keyboard: {e}")),
-                },
+            finish_run(
+                &app,
+                &control,
+                0,
+                0,
+                0,
+                None,
+                Some(format!("Could not access the keyboard: {e}")),
             );
-            control.running.store(false, Ordering::Relaxed);
             return;
         }
     };
@@ -204,6 +281,12 @@ fn run_typing(app: AppHandle, cfg: TypeConfig, control: Arc<Control>) {
 
     let mut i = 0usize;
     while i < total {
+        // ---- stop requested from the Stop button or the Esc key?
+        if stop_requested(&control) {
+            stop_reason = Some("Stopped.".into());
+            break;
+        }
+
         // ---- safety guard: did they switch away from the target window?
         if cfg.stop_on_focus_change && target_window != 0 {
             let now = foreground_window();
@@ -263,24 +346,22 @@ fn run_typing(app: AppHandle, cfg: TypeConfig, control: Arc<Control>) {
             delay *= rng.range(0.55, 1.7);
             delay += base * pause_after(ch) * rng.range(0.6, 1.2);
         }
-        if delay > 0.0 {
-            thread::sleep(Duration::from_secs_f64(delay));
+        if nap(delay, &control) {
+            stop_reason = Some("Stopped.".into());
+            break;
         }
     }
 
     let elapsed = started.elapsed();
-    let _ = app.emit(
-        "finished",
-        Finished {
-            typed,
-            total,
-            elapsed_ms: elapsed.as_millis(),
-            stopped: stop_reason.is_some(),
-            reason: stop_reason,
-            error,
-        },
+    finish_run(
+        &app,
+        &control,
+        typed,
+        total,
+        elapsed.as_millis(),
+        stop_reason,
+        error,
     );
-    control.running.store(false, Ordering::Relaxed);
 }
 
 // ---------------------------------------------------------------- commands
@@ -299,10 +380,25 @@ fn start_typing(
     }
 
     state.control.running.store(true, Ordering::Relaxed);
+    state.control.cancel.store(false, Ordering::Relaxed);
 
     let control = state.control.clone();
     thread::spawn(move || run_typing(app, config, control));
     Ok(())
+}
+
+/// Ask the current run to stop. Safe to call when nothing is running.
+#[tauri::command]
+fn stop_typing(state: tauri::State<'_, AppState>) {
+    state.control.cancel.store(true, Ordering::Relaxed);
+}
+
+/// Toggle whether the window floats above other windows. The typist is
+/// normally kept on top so the target app never hides it, but some people
+/// want it out of the way; this lets the UI switch it off.
+#[tauri::command]
+fn set_on_top(window: tauri::Window, on: bool) -> Result<(), String> {
+    window.set_always_on_top(on).map_err(|e| e.to_string())
 }
 
 /// macOS only delivers synthetic keystrokes from apps granted Accessibility
@@ -325,6 +421,74 @@ fn accessibility_ok() -> bool {
     }
 }
 
+/// Pops the system Accessibility prompt and opens the settings pane so the
+/// user does not have to hunt for it. On macOS `AXIsProcessTrustedWithOptions`
+/// with the prompt option registers this app in the Accessibility list and
+/// shows the native "Open System Settings" dialog; we also open the pane
+/// directly as a fallback in case macOS suppresses the dialog (it only shows
+/// once per app). Returns the current trust state.
+#[tauri::command]
+fn open_accessibility() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::raw::c_void;
+
+        type CFRef = *const c_void;
+
+        #[link(name = "ApplicationServices", kind = "framework")]
+        extern "C" {
+            static kAXTrustedCheckOptionPrompt: CFRef;
+            fn AXIsProcessTrustedWithOptions(options: CFRef) -> bool;
+        }
+        #[link(name = "CoreFoundation", kind = "framework")]
+        extern "C" {
+            static kCFAllocatorDefault: CFRef;
+            static kCFBooleanTrue: CFRef;
+            static kCFTypeDictionaryKeyCallBacks: c_void;
+            static kCFTypeDictionaryValueCallBacks: c_void;
+            fn CFDictionaryCreate(
+                allocator: CFRef,
+                keys: *const CFRef,
+                values: *const CFRef,
+                num_values: isize,
+                key_cbs: *const c_void,
+                value_cbs: *const c_void,
+            ) -> CFRef;
+            fn CFRelease(cf: CFRef);
+        }
+
+        let trusted = unsafe {
+            let keys = [kAXTrustedCheckOptionPrompt];
+            let values = [kCFBooleanTrue];
+            let opts = CFDictionaryCreate(
+                kCFAllocatorDefault,
+                keys.as_ptr(),
+                values.as_ptr(),
+                1,
+                &kCFTypeDictionaryKeyCallBacks,
+                &kCFTypeDictionaryValueCallBacks,
+            );
+            let t = AXIsProcessTrustedWithOptions(opts);
+            if !opts.is_null() {
+                CFRelease(opts);
+            }
+            t
+        };
+
+        // Open the pane directly too, so the user lands on the right screen
+        // even when the one-shot native dialog does not appear.
+        let _ = std::process::Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+            .spawn();
+
+        return trusted;
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
 #[tauri::command]
 fn is_running(state: tauri::State<'_, AppState>) -> bool {
     state.control.running.load(Ordering::Relaxed)
@@ -340,7 +504,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             start_typing,
+            stop_typing,
+            set_on_top,
             accessibility_ok,
+            open_accessibility,
             is_running
         ])
         .run(tauri::generate_context!())
