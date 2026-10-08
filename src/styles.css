@@ -138,6 +138,19 @@ button.ghost { background: transparent; }
 .switch { font-weight: 400; color: var(--muted); }
 
 .hint { margin: 0; color: var(--muted); font-size: 12px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+button.chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: transparent;
+}
+button.chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
 .warn {
   margin: 0; padding: 8px 10px; border-radius: 7px;
   background: var(--warn-bg); color: var(--warn-ink); font-size: 12px;

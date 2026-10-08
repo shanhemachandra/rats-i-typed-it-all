@@ -1,6 +1,6 @@
 [package]
 name = "rats-i-typed-it-all"
-version = "0.1.7"
+version = "0.1.8"
 description = "Type text into any app, where paste does not reach."
 authors = ["Shan"]
 edition = "2021"

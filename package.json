@@ -7,7 +7,7 @@
     "dev": "tauri dev",
     "build": "tauri build",
     "icon": "tauri icon assets/icon-source.png",
-    "test": "node tests/textpipe.test.js",
+    "test": "node tests/textpipe.test.js && node tests/presets.test.js",
     "tauri": "tauri"
   },
   "devDependencies": {

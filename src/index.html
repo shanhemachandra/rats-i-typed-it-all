@@ -42,6 +42,18 @@
     </section>
 
     <section class="panel">
+      <div class="row between">
+        <label class="section-label">Where are you typing?</label>
+        <span id="presetState" class="muted small"></span>
+      </div>
+      <div id="presets" class="chips" role="group" aria-label="Setting presets"></div>
+      <p id="presetHint" class="hint"></p>
+      <div class="row gap">
+        <button id="savePreset" class="ghost small">Save current settings as My preset</button>
+      </div>
+    </section>
+
+    <section class="panel">
       <div class="row between collapsible" data-target="table-body">
         <label class="section-label">Table mode</label>
         <label class="switch">
@@ -185,6 +197,7 @@
   </main>
 
   <script src="textpipe.js"></script>
+  <script src="presets.js"></script>
   <script src="main.js"></script>
 </body>
 </html>

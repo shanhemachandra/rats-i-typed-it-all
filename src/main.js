@@ -262,6 +262,94 @@ el.cps.addEventListener("input", () => {
     n.addEventListener(evt, updateCount));
 });
 
+// ------------------------------------------------------------ presets
+
+const { PRESETS, KEYS: PRESET_KEYS } = window.Presets;
+const MY_PRESET = "rats.myPreset";
+
+/** Current value of every preset-controlled setting. */
+function readSettings() {
+  const v = {};
+  for (const k of PRESET_KEYS) {
+    const n = $(k);
+    v[k] = n.type === "checkbox" ? n.checked : n.type === "range" ? Number(n.value) : n.value;
+  }
+  return v;
+}
+
+/** Bring the parts of the page that depend on settings back in line. */
+function syncDerived() {
+  $("table-body").classList.toggle("hidden", !el.tableMode.checked);
+  el.enterWarn.classList.toggle("hidden", el.newlineMode.value !== "enter");
+  el.human.disabled = el.burst.checked;
+  el.cpsOut.textContent = `${el.cps.value} chars/sec`;
+}
+
+function applySettings(values) {
+  for (const k of PRESET_KEYS) {
+    if (!(k in values)) continue;
+    const n = $(k);
+    if (n.type === "checkbox") n.checked = Boolean(values[k]);
+    else n.value = String(values[k]);
+  }
+  syncDerived();
+  updateCount();
+  renderPresets();
+}
+
+// The saved preset lives in this computer's browser storage, which can be
+// missing or blocked; the app works the same without it.
+function loadMyPreset() {
+  try {
+    const raw = localStorage.getItem(MY_PRESET);
+    return raw ? Object.assign({}, window.Presets.BASE, JSON.parse(raw)) : null;
+  } catch { return null; }
+}
+
+function allPresets() {
+  const mine = loadMyPreset();
+  return mine
+    ? [...PRESETS, { id: "mine", label: "My preset", hint: "Your saved settings.", values: mine }]
+    : PRESETS;
+}
+
+/** Chips for every preset, with the one matching the current settings lit. */
+function renderPresets() {
+  const now = readSettings();
+  const list = allPresets();
+  const active = list.find((p) => PRESET_KEYS.every((k) => p.values[k] === now[k]));
+  const box = $("presets");
+  box.replaceChildren(...list.map((p) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip" + (p === active ? " active" : "");
+    b.textContent = p.label;
+    b.setAttribute("aria-pressed", String(p === active));
+    b.addEventListener("click", () => applySettings(p.values));
+    return b;
+  }));
+  $("presetState").textContent = active ? active.label : "Custom";
+  $("presetHint").textContent = active
+    ? active.hint
+    : "Your own mix of settings. Save it to come back to it in one click.";
+}
+
+// Any hand-made change re-checks which preset, if any, still matches.
+["input", "change"].forEach((evt) =>
+  document.addEventListener(evt, (e) => {
+    if (PRESET_KEYS.includes(e.target.id)) renderPresets();
+  }));
+
+$("savePreset").addEventListener("click", () => {
+  try {
+    localStorage.setItem(MY_PRESET, JSON.stringify(readSettings()));
+    setStatus("Saved. Click My preset any time to get these settings back.", "ok");
+  } catch {
+    setStatus("Could not save on this computer.", "err");
+  }
+  renderPresets();
+});
+
 // WebKit can restore form controls from a previous launch. That once left
 // table mode silently ticked, which turns every comma in ordinary prose
 // into a Tab. Always start from the defaults written in the HTML.
@@ -272,12 +360,9 @@ document.querySelectorAll("input, select, textarea").forEach((n) => {
     n.selectedIndex = i < 0 ? 0 : i;
   } else n.value = n.defaultValue;
 });
-$("table-body").classList.toggle("hidden", !el.tableMode.checked);
-el.human.disabled = el.burst.checked;
-
-el.cpsOut.textContent = `${el.cps.value} chars/sec`;
-el.enterWarn.classList.remove("hidden");
+syncDerived();
 updateCount();
+renderPresets();
 checkAccessibility();
 // Match the window's float state to the checkbox default on launch.
 if (invoke) { invoke("set_on_top", { on: el.onTop.checked }).catch(() => {}); }
